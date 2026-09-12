@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      api-db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: canumpe_academic_api_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      attendance-db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: asistencia_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      API_DB_URL: postgresql+psycopg://test:test@localhost:5433/canumpe_academic_api_test
+      ATTENDANCE_DB_URL: postgresql+psycopg://test:test@localhost:5434/asistencia_test
+      API_KEY_HASH_PEPPER: ci-test-pepper
+      PGPASSWORD: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Type check
+        run: mypy app
+
+      - name: Seed Attendance source database (fake data only)
+        run: |
+          psql -h localhost -p 5434 -U test -d asistencia_test -f tests/fixtures/attendance_schema.sql
+          psql -h localhost -p 5434 -U test -d asistencia_test -f tests/fixtures/attendance_seed.sql
+
+      - name: Migrate API database
+        run: alembic upgrade head
+
+      - name: Run tests (unit, integration, API)
+        run: pytest -v
+
+      - name: Dependency vulnerability scan
+        run: |
+          pip install pip-audit
+          pip-audit
+
+      - name: Verify container image builds
+        run: docker build -t canumpe-academic-api:ci-verify .
