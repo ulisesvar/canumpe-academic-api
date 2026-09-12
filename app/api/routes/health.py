@@ -3,6 +3,7 @@ from sqlalchemy import text
 
 from app.db.api_db import get_engine as get_api_engine
 from app.db.attendance_db import get_engine as get_attendance_engine
+from app.db.moodle_db import get_engine as get_moodle_engine
 
 router = APIRouter(tags=["health"])
 
@@ -15,7 +16,12 @@ def health() -> dict[str, str]:
 @router.get("/ready", summary="Readiness check")
 def ready(response: Response) -> dict[str, str]:
     checks = {}
-    for name, get_engine in (("api_db", get_api_engine), ("attendance_db", get_attendance_engine)):
+    engines = (
+        ("api_db", get_api_engine),
+        ("attendance_db", get_attendance_engine),
+        ("moodle_db", get_moodle_engine),
+    )
+    for name, get_engine in engines:
         try:
             with get_engine().connect() as conn:
                 conn.execute(text("SELECT 1"))

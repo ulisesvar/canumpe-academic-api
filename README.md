@@ -13,12 +13,33 @@ for the rest of the API:
 - API key authentication (`Authorization: Bearer <key>`)
 - `GET /api/v1/me/attendance` — the authenticated student's attendance history, read
   from the Attendance PostgreSQL database
+- `GET /api/v1/me/courses` — the authenticated student's actively enrolled courses,
+  read from the Moodle PostgreSQL database (see "Moodle identity mapping" below)
 - `GET /health`, `GET /ready`
 - The API's own database (API key metadata + student identity mapping), managed with
   Alembic
 
-Moodle integration, additional `/me/*` endpoints, and teacher/admin roles are not yet
-implemented — see the engineering instructions this project follows for the full scope.
+Grades, assignments, and teacher/admin roles are not yet implemented — see the
+engineering instructions this project follows for the full scope.
+
+### Moodle identity mapping
+
+This Moodle instance stores each student's account number in a custom user profile
+field rather than a built-in `mdl_user` column. The mapping, resolved by field
+`shortname` rather than a hardcoded id:
+
+```
+mdl_user_info_field.shortname = 'cuenta'
+        ↓ (id)
+mdl_user_info_data.fieldid = <that id>, .userid = mdl_user.id
+        ↓ .data
+student's account number (matches student_identities.account_number)
+```
+
+"My courses" means an actively enrolled course: `mdl_user_enrolments.status = 0`
+(the student's own enrolment is active) **and** `mdl_enrol.status = 0` (the enrolment
+method instance itself is enabled). Hidden courses (`mdl_course.visible = 0`) are still
+returned, with `visible` exposed in the response, rather than filtered server-side.
 
 ## Architecture
 
@@ -27,7 +48,7 @@ Four concerns are kept separate, matching `app/`:
 ```
 app/api/         HTTP layer: routes, request/response wiring, error shaping
 app/auth/        API key parsing, hashing, verification, the auth dependency
-app/semantic/    Source-agnostic domain model (e.g. AttendanceRecord)
+app/semantic/    Source-agnostic domain model (e.g. AttendanceRecord, Course)
 app/repositories/ Source-specific SQL, isolated per source system
 app/services/    Glue between repositories and the semantic model
 app/schemas/     Pydantic response models (the public contract)
@@ -43,8 +64,8 @@ only place allowed to know about `students`, `attendance_sessions`, etc.
 
 Requires Docker and Python 3.12+.
 
-1. Start disposable Postgres containers (an API metadata DB and a fake Attendance DB
-   pre-seeded with fixture data — see `tests/fixtures/`):
+1. Start disposable Postgres containers (an API metadata DB and fake Attendance and
+   Moodle DBs pre-seeded with fixture data — see `tests/fixtures/`):
 
    ```
    docker compose -f compose.test.yml up -d
@@ -58,12 +79,13 @@ Requires Docker and Python 3.12+.
    ```
 
 3. Copy `.env.example` to `.env` and point it at the containers above (ports `5433`
-   for the API DB, `5434` for the Attendance DB), or export the equivalent environment
-   variables directly:
+   for the API DB, `5434` for Attendance, `5435` for Moodle), or export the equivalent
+   environment variables directly:
 
    ```
    export API_DB_URL=postgresql+psycopg://test:test@localhost:5433/canumpe_academic_api_test
    export ATTENDANCE_DB_URL=postgresql+psycopg://test:test@localhost:5434/asistencia_test
+   export MOODLE_DB_URL=postgresql+psycopg://test:test@localhost:5435/moodle_test
    export API_KEY_HASH_PEPPER=dev-pepper
    ```
 
@@ -120,8 +142,8 @@ docker compose up -d
 ```
 
 `compose.yml` runs three things: the API's own Postgres database, a one-shot `migrate`
-service (`alembic upgrade head`), and the API itself. `ATTENDANCE_DB_URL` (and, later,
-`MOODLE_DB_URL`) must point at the existing source systems — this compose file does not
+service (`alembic upgrade head`), and the API itself. `ATTENDANCE_DB_URL` and
+`MOODLE_DB_URL` must point at the existing source systems — this compose file does not
 create them. See `.env.example` for required variables.
 
 Roll back by changing `TAG` to a previous image tag and re-running `docker compose pull
