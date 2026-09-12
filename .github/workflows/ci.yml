@@ -39,9 +39,24 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+      moodle-db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: moodle_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
       API_DB_URL: postgresql+psycopg://test:test@localhost:5433/canumpe_academic_api_test
       ATTENDANCE_DB_URL: postgresql+psycopg://test:test@localhost:5434/asistencia_test
+      MOODLE_DB_URL: postgresql+psycopg://test:test@localhost:5435/moodle_test
       API_KEY_HASH_PEPPER: ci-test-pepper
       PGPASSWORD: test
 
@@ -65,6 +80,11 @@ jobs:
         run: |
           psql -h localhost -p 5434 -U test -d asistencia_test -f tests/fixtures/attendance_schema.sql
           psql -h localhost -p 5434 -U test -d asistencia_test -f tests/fixtures/attendance_seed.sql
+
+      - name: Seed Moodle source database (fake data only)
+        run: |
+          psql -h localhost -p 5435 -U test -d moodle_test -f tests/fixtures/moodle_schema.sql
+          psql -h localhost -p 5435 -U test -d moodle_test -f tests/fixtures/moodle_seed.sql
 
       - name: Migrate API database
         run: alembic upgrade head

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     api_db_url: str
     attendance_db_url: str
-    moodle_db_url: str | None = None
+    moodle_db_url: str
 
     api_key_hash_pepper: str = ""
 

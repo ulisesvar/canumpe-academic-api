@@ -16,7 +16,10 @@ PEPPER = "unit-test-pepper"
 
 def _settings() -> Settings:
     return Settings(
-        api_db_url="sqlite://", attendance_db_url="sqlite://", api_key_hash_pepper=PEPPER
+        api_db_url="sqlite://",
+        attendance_db_url="sqlite://",
+        moodle_db_url="sqlite://",
+        api_key_hash_pepper=PEPPER,
     )
 
 
