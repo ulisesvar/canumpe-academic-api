@@ -57,6 +57,7 @@ jobs:
       API_DB_URL: postgresql+psycopg://test:test@localhost:5433/canumpe_academic_api_test
       ATTENDANCE_DB_URL: postgresql+psycopg://test:test@localhost:5434/asistencia_test
       MOODLE_DB_URL: postgresql+psycopg://test:test@localhost:5435/moodle_test
+      MOODLE_COURSE_ID: "10"
       API_KEY_HASH_PEPPER: ci-test-pepper
       PGPASSWORD: test
 

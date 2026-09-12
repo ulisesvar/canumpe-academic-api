@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     api_db_url: str
     attendance_db_url: str
     moodle_db_url: str
+    moodle_course_id: int
+    """The single Moodle course CANUMPE currently serves (e.g. APS). Only
+    enrolments in this course are ever returned from /me/courses."""
 
     api_key_hash_pepper: str = ""
 

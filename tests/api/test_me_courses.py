@@ -12,7 +12,7 @@ def test_valid_api_key_returns_200_with_expected_schema(client, issue_api_key):
 
     assert response.status_code == 200
     body = response.json()
-    assert len(body) == 2
+    assert len(body) == 1
     assert EXPECTED_FIELDS <= set(body[0].keys())
 
 
@@ -54,6 +54,17 @@ def test_student_absent_from_moodle_gets_empty_list(client, issue_api_key):
     assert response.json() == []
 
 
+def test_active_enrolment_outside_canumpe_scope_is_not_returned(client, issue_api_key):
+    """Bob (A0002) is actively enrolled in a real Moodle course, just not
+    the one CANUMPE currently serves -- the API must not leak it."""
+    key = issue_api_key("A0002")
+
+    response = client.get(ENDPOINT, headers={"Authorization": f"Bearer {key}"})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_student_a_can_never_see_student_bs_courses(client, issue_api_key):
     key_a = issue_api_key("A0001")
     key_b = issue_api_key("A0002")
@@ -61,11 +72,27 @@ def test_student_a_can_never_see_student_bs_courses(client, issue_api_key):
     body_a = client.get(ENDPOINT, headers={"Authorization": f"Bearer {key_a}"}).json()
     body_b = client.get(ENDPOINT, headers={"Authorization": f"Bearer {key_b}"}).json()
 
-    ids_a = {c["course_id"] for c in body_a}
-    ids_b = {c["course_id"] for c in body_b}
-    assert ids_a == {10, 40}
-    assert ids_b == {20}
-    assert ids_a.isdisjoint(ids_b)
+    assert {c["course_id"] for c in body_a} == {10}
+    assert body_b == []
+
+
+def test_duplicate_moodle_account_number_returns_500_without_leaking_details(issue_api_key):
+    """Two non-deleted Moodle users share account number A0009 in the
+    fixture -- the API must fail safely rather than arbitrarily returning
+    one of them."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    key = issue_api_key("A0009")
+
+    with TestClient(app, raise_server_exceptions=False) as broken_client:
+        response = broken_client.get(ENDPOINT, headers={"Authorization": f"Bearer {key}"})
+
+    assert response.status_code == 500
+    body = response.json()
+    assert body == {"error": "internal_error", "message": "An unexpected error occurred"}
+    assert "A0009" not in response.text
 
 
 def test_moodle_source_failure_returns_500_without_leaking_details(

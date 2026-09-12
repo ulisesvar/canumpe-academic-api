@@ -19,6 +19,7 @@ def _settings() -> Settings:
         api_db_url="sqlite://",
         attendance_db_url="sqlite://",
         moodle_db_url="sqlite://",
+        moodle_course_id=10,
         api_key_hash_pepper=PEPPER,
     )
 
